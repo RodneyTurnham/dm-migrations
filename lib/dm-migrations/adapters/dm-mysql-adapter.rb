@@ -65,6 +65,10 @@ module DataMapper
         def property_schema_hash(property)
           schema = super
 
+          if property.kind_of?(Property::NativeEnum)
+            schema[:choices] = property.options[:choices]
+          end
+
           if property.kind_of?(Property::Text)
             schema[:primitive] = text_column_statement(property.length)
             schema.delete(:default)
@@ -83,6 +87,10 @@ module DataMapper
         # @api private
         def property_schema_statement(connection, schema)
           statement = super
+          if schema[:choices]
+            choices = schema[:choices].map {|choice| connection.quote_value(choice)}.join(',')
+            statement.sub!("ENUM(#{DataMapper::Property::String.length})", "ENUM(#{choices})")
+          end
 
           if supports_serial? && schema[:serial]
             statement << ' AUTO_INCREMENT'
@@ -289,7 +297,8 @@ module DataMapper
         def type_map
           super.merge(
             DateTime => { :primitive => 'DATETIME' },
-            Time     => { :primitive => 'DATETIME' }
+            Time     => { :primitive => 'DATETIME' },
+            Property::NativeEnum => {:primitive => 'ENUM'}
           ).freeze
         end
       end
